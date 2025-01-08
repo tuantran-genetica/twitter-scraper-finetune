@@ -173,11 +173,19 @@ async saveCookies() {
     const username = process.env.TWITTER_USERNAME;
     const password = process.env.TWITTER_PASSWORD;
     const email = process.env.TWITTER_EMAIL;
+    const secret = process.env.TWITTER_2FA_SECRET;
 
+    const twitter2faEnabled = process.env.TWITTER_2FA_ENABLED === "true";
     if (!username || !password || !email) {
       Logger.error("Missing required credentials. Need username, password, AND email");
       Logger.stopSpinner(false);
       return false;
+    }
+
+    if (twitter2faEnabled && !secret) {
+      Logger.error("Missing 2FA secret. Required for 2FA login");
+      Logger.stopSpinner(false);
+      return false
     }
 
     // Attempt login with email verification
@@ -186,8 +194,8 @@ async saveCookies() {
         // Add random delay before login attempt
         await this.randomDelay(5000, 10000);
 
-        // Always use email in login attempt
-        await this.scraper.login(username, password, email);
+        // Always use email and 2fa in login attempt
+        await this.scraper.login(username, password, email, secret);
 
         // Verify login success
         const isLoggedIn = await this.scraper.isLoggedIn();
