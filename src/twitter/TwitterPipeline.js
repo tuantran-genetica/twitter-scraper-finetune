@@ -8,6 +8,7 @@ import fs from "fs/promises";
 import Logger from "./Logger.js";
 import DataOrganizer from "./DataOrganizer.js";
 import TweetFilter from "./TweetFilter.js";
+import Db from "./Db.js";
 
 // agent-twitter-client
 import { Scraper, SearchMode } from "agent-twitter-client";
@@ -28,6 +29,7 @@ class TwitterPipeline {
     this.dataOrganizer = new DataOrganizer("pipeline", username);
     this.paths = this.dataOrganizer.getPaths();
     this.tweetFilter = new TweetFilter();
+    this.db = new Db();
 
     // Update cookie path to be in top-level cookies directory
     this.paths.cookies = path.join(
@@ -187,6 +189,9 @@ async saveCookies() {
       Logger.stopSpinner(false);
       return false
     }
+
+    // Init db
+    await this.db.initialize();
 
     // Attempt login with email verification
     while (retryCount < this.config.twitter.maxRetries) {
@@ -683,6 +688,11 @@ async saveCookies() {
       // Save collected data
       Logger.startSpinner("Processing and saving data");
       const analytics = await this.dataOrganizer.saveTweets(allTweets);
+      Logger.stopSpinner();
+
+      // Save data to db
+      Logger.startSpinner("Processing and saving data to database");
+      const _ = await this.db.saveTweets(allTweets);
       Logger.stopSpinner();
 
       // Calculate final statistics
