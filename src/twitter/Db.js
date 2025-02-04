@@ -41,6 +41,11 @@ class Db {
 
       CREATE INDEX IF NOT EXISTS idx_tweets_username ON tweets(username);
       CREATE INDEX IF NOT EXISTS idx_tweets_created_at ON tweets(created_at);
+
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL
+      );
     `;
 
     try {
@@ -139,6 +144,55 @@ class Db {
       throw error;
     } finally {
       client.release(); // Release the client back to the pool
+    }
+  }
+
+  // List all users
+  async listUsers() {
+    try {
+      const result = await this.pool.query(
+        "SELECT * FROM users ORDER BY id ASC"
+      );
+      return result.rows;
+    } catch (error) {
+      console.error("Error listing users:", error);
+      throw error;
+    }
+  }
+
+  // Insert a new user by username
+  async insertUser(username) {
+    if (!username) {
+      throw new Error("Username is required to insert a new user");
+    }
+
+    try {
+      const result = await this.pool.query(
+        "INSERT INTO users (username) VALUES ($1) RETURNING *",
+        [username]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error("Error inserting user:", error);
+      throw error;
+    }
+  }
+
+  // Remove a user by username
+  async removeUser(username) {
+    if (!username) {
+      throw new Error("Username is required to remove a user");
+    }
+
+    try {
+      const result = await this.pool.query(
+        "DELETE FROM users WHERE username = $1 RETURNING *",
+        [username]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error("Error removing user:", error);
+      throw error;
     }
   }
 

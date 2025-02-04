@@ -8,7 +8,6 @@ import fs from "fs/promises";
 import Logger from "./Logger.js";
 import DataOrganizer from "./DataOrganizer.js";
 import TweetFilter from "./TweetFilter.js";
-import Db from "./Db.js";
 
 // agent-twitter-client
 import { Scraper, SearchMode } from "agent-twitter-client";
@@ -24,17 +23,17 @@ puppeteer.use(StealthPlugin());
 puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
 
 class TwitterPipeline {
-  constructor(username) {
+  constructor(username, db) {
     this.username = username;
     this.dataOrganizer = new DataOrganizer("pipeline", username);
     this.paths = this.dataOrganizer.getPaths();
     this.tweetFilter = new TweetFilter();
-    this.db = new Db();
+    this.db = db;
 
     // Update cookie path to be in top-level cookies directory
     this.paths.cookies = path.join(
       process.cwd(),
-      'cookies',
+      "cookies",
       `${process.env.TWITTER_USERNAME}_cookies.json`
     );
 
@@ -127,10 +126,10 @@ class TwitterPipeline {
     Logger.stopSpinner();
   }
 
-async loadCookies() {
+  async loadCookies() {
     try {
       if (await fs.access(this.paths.cookies).catch(() => false)) {
-        const cookiesData = await fs.readFile(this.paths.cookies, 'utf-8');
+        const cookiesData = await fs.readFile(this.paths.cookies, "utf-8");
         const cookies = JSON.parse(cookiesData);
         await this.scraper.setCookies(cookies);
         return true;
@@ -139,20 +138,19 @@ async loadCookies() {
       Logger.warn(`Failed to load cookies: ${error.message}`);
     }
     return false;
-}
+  }
 
-async saveCookies() {
+  async saveCookies() {
     try {
       const cookies = await this.scraper.getCookies();
       // Create cookies directory if it doesn't exist
       await fs.mkdir(path.dirname(this.paths.cookies), { recursive: true });
       await fs.writeFile(this.paths.cookies, JSON.stringify(cookies));
-      Logger.success('Saved authentication cookies');
+      Logger.success("Saved authentication cookies");
     } catch (error) {
       Logger.warn(`Failed to save cookies: ${error.message}`);
     }
-}
-
+  }
 
   async initializeScraper() {
     Logger.startSpinner("Initializing Twitter scraper");
@@ -179,7 +177,9 @@ async saveCookies() {
 
     const twitter2faEnabled = process.env.TWITTER_2FA_ENABLED === "true";
     if (!username || !password || !email) {
-      Logger.error("Missing required credentials. Need username, password, AND email");
+      Logger.error(
+        "Missing required credentials. Need username, password, AND email"
+      );
       Logger.stopSpinner(false);
       return false;
     }
@@ -187,11 +187,8 @@ async saveCookies() {
     if (twitter2faEnabled && !secret) {
       Logger.error("Missing 2FA secret. Required for 2FA login");
       Logger.stopSpinner(false);
-      return false
+      return false;
     }
-
-    // Init db
-    await this.db.initialize();
 
     // Attempt login with email verification
     while (retryCount < this.config.twitter.maxRetries) {
@@ -212,7 +209,6 @@ async saveCookies() {
         } else {
           throw new Error("Login verification failed");
         }
-
       } catch (error) {
         retryCount++;
         Logger.warn(
@@ -225,7 +221,8 @@ async saveCookies() {
         }
 
         // Exponential backoff with jitter
-        const baseDelay = this.config.twitter.retryDelay * Math.pow(2, retryCount - 1);
+        const baseDelay =
+          this.config.twitter.retryDelay * Math.pow(2, retryCount - 1);
         const maxJitter = baseDelay * 0.2; // 20% jitter
         const jitter = Math.floor(Math.random() * maxJitter);
         await this.randomDelay(baseDelay + jitter, baseDelay + jitter + 5000);
@@ -233,7 +230,6 @@ async saveCookies() {
     }
     return false;
   }
-
 
   async randomDelay(min, max) {
     // Gaussian distribution for more natural delays
@@ -245,53 +241,8 @@ async saveCookies() {
 
     const delay = Math.floor(min + gaussianRand() * (max - min));
     Logger.info(`Waiting ${(delay / 1000).toFixed(1)} seconds...`);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
-
-  /*
-  async initializeScraper() {
-    Logger.startSpinner("Initializing Twitter scraper");
-    let retryCount = 0;
-
-    while (retryCount < this.config.twitter.maxRetries) {
-      try {
-        const username = process.env.TWITTER_USERNAME;
-        const password = process.env.TWITTER_PASSWORD;
-
-        if (!username || !password) {
-          throw new Error("Twitter credentials not found");
-        }
-
-        // Try login with minimal parameters first
-        await this.scraper.login(username, password);
-
-        if (await this.scraper.isLoggedIn()) {
-          Logger.success("✅ Successfully authenticated with Twitter");
-          Logger.stopSpinner();
-          return true;
-        } else {
-          throw new Error("Authentication failed");
-        }
-      } catch (error) {
-        retryCount++;
-        Logger.warn(
-          `⚠️  Authentication attempt ${retryCount} failed: ${error.message}`
-        );
-
-        if (retryCount >= this.config.twitter.maxRetries) {
-          Logger.stopSpinner(false);
-          // Don't throw - allow fallback
-          return false;
-        }
-
-        await this.randomDelay(
-          this.config.twitter.retryDelay * retryCount,
-          this.config.twitter.retryDelay * retryCount * 2
-        );
-      }
-    }
-    return false;
-  }   */
 
   async randomDelay(min = null, max = null) {
     const minDelay = min || this.config.twitter.minDelayBetweenRequests;
@@ -719,49 +670,49 @@ async saveCookies() {
         "Storage Location": chalk.gray(this.dataOrganizer.baseDir),
       });
 
-      // Content type breakdown
-      Logger.info("\n📊 Content Type Breakdown:");
-      console.log(
-        chalk.cyan(
-          `• Text Only: ${analytics.contentTypes.textOnly.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(
-          `• With Images: ${analytics.contentTypes.withImages.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(
-          `• With Videos: ${analytics.contentTypes.withVideos.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(
-          `• With Links: ${analytics.contentTypes.withLinks.toLocaleString()}`
-        )
-      );
+      // // Content type breakdown
+      // Logger.info("\n📊 Content Type Breakdown:");
+      // console.log(
+      //   chalk.cyan(
+      //     `• Text Only: ${analytics.contentTypes.textOnly.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(
+      //     `• With Images: ${analytics.contentTypes.withImages.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(
+      //     `• With Videos: ${analytics.contentTypes.withVideos.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(
+      //     `• With Links: ${analytics.contentTypes.withLinks.toLocaleString()}`
+      //   )
+      // );
 
-      // Engagement statistics
-      Logger.info("\n💫 Engagement Statistics:");
-      console.log(
-        chalk.cyan(
-          `• Total Likes: ${analytics.engagement.totalLikes.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(
-          `• Total Retweets: ${analytics.engagement.totalRetweetCount.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(
-          `• Total Replies: ${analytics.engagement.totalReplies.toLocaleString()}`
-        )
-      );
-      console.log(
-        chalk.cyan(`• Average Likes: ${analytics.engagement.averageLikes}`)
-      );
+      // // Engagement statistics
+      // Logger.info("\n💫 Engagement Statistics:");
+      // console.log(
+      //   chalk.cyan(
+      //     `• Total Likes: ${analytics.engagement.totalLikes.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(
+      //     `• Total Retweets: ${analytics.engagement.totalRetweetCount.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(
+      //     `• Total Replies: ${analytics.engagement.totalReplies.toLocaleString()}`
+      //   )
+      // );
+      // console.log(
+      //   chalk.cyan(`• Average Likes: ${analytics.engagement.averageLikes}`)
+      // );
 
       // Collection method breakdown
       if (this.stats.fallbackUsed) {
@@ -779,9 +730,6 @@ async saveCookies() {
           )
         );
       }
-
-      // Show sample tweets
-      await this.showSampleTweets(allTweets);
 
       // Cleanup
       await this.cleanup();
@@ -870,22 +818,9 @@ async saveCookies() {
         Logger.success("🔒 Cleaned up fallback system");
       }
 
-      await this.saveProgress(null, null, this.stats.uniqueTweets, {
-        completed: true,
-        endTime: new Date().toISOString(),
-        fallbackUsed: this.stats.fallbackUsed,
-        fallbackCount: this.stats.fallbackCount,
-        rateLimitHits: this.stats.rateLimitHits,
-      });
-
       Logger.success("✨ Cleanup complete");
     } catch (error) {
       Logger.warn(`⚠️  Cleanup error: ${error.message}`);
-      await this.saveProgress(null, null, this.stats.uniqueTweets, {
-        completed: true,
-        endTime: new Date().toISOString(),
-        error: error.message,
-      });
     }
   }
 }
