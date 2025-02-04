@@ -13,11 +13,18 @@ RUN npm install
 # Copy all source files
 COPY . .
 
-# Create a non-root user
+# Create a non-root user and give ownership of the /app directory
 RUN useradd -m nonuser && \
+    mkdir -p /app/pipeline /app/cookies && \
     chown -R nonuser:nonuser /app
+
+# Switch to non-root user
 USER nonuser
 
+
+# Ensure the directories exist and have the correct permissions
+RUN mkdir -p /app/pipeline /app/cookies && \
+    chmod -R 755 /app
 
 # Command to run the application
 CMD ["node", "src/twitter/index.js"]
