@@ -21,5 +21,10 @@ RUN useradd -m nonuser && \
 # Switch to non-root user
 USER nonuser
 
+
+# Ensure the directories exist and have the correct permissions
+RUN mkdir -p /app/pipeline /app/cookies && \
+    chmod -R 755 /app
+
 # Command to run the application
 CMD ["node", "src/twitter/index.js"]
