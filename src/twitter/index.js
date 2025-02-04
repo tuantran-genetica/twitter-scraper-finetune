@@ -17,6 +17,18 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
+const db = new Db();
+await db.initialize().catch(() => process.exit(1));
+const users = await db.listUsers();
+
+if (users.length === 0) {
+  Logger.error("❌ No users found in the database. Exiting...");
+  process.exit(1);
+}
+
+Logger.info("🔍 Fetching users from the database...");
+Logger.info(`👥 Found ${users.length} user(s) in the database`);
+
 const runJob = async () => {
   const db = new Db();
   await db.initialize().catch(() => process.exit(1));
