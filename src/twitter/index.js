@@ -17,18 +17,6 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-const db = new Db();
-await db.initialize().catch(() => process.exit(1));
-const users = await db.listUsers();
-
-if (users.length === 0) {
-  Logger.error("❌ No users found in the database. Exiting...");
-  process.exit(1);
-}
-
-Logger.info("🔍 Fetching users from the database...");
-Logger.info(`👥 Found ${users.length} user(s) in the database`);
-
 const runJob = async () => {
   const db = new Db();
   await db.initialize().catch(() => process.exit(1));
@@ -75,8 +63,12 @@ const formatCurrentTime = () => {
 
 Logger.info(`📝 Server started at: ${formatCurrentTime()} UTC`);
 
+await runJob();
+
+sleep(15000);
+
 // Schedule the job to run every 3 hours
-cron.schedule("0 */3 * * *", () => {
+cron.schedule("0 */3 * * *", async () => {
   Logger.info("⏰ Starting scheduled job...");
-  runJob();
+  await runJob();
 });
